@@ -4,7 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Trash2, Save, Plus, Minus } from "lucide-react";
+import {
+  PlusCircle,
+  Trash2,
+  Save,
+  Plus,
+  Minus,
+  Upload,
+  Download,
+} from "lucide-react";
 import { supabase } from "../../../supabase/supabase";
 import { useAuth } from "../auth/VercelAuthProvider";
 import { useToast } from "@/components/ui/use-toast";
@@ -46,6 +54,7 @@ const CreateQuiz = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
   const [quizData, setQuizData] = useState<QuizData>({
     title: "",
     description: "",
@@ -376,7 +385,7 @@ const CreateQuiz = () => {
     return true;
   };
 
-  // Save quiz to Supabase - SIMPLIFIED VERSION
+  // Save quiz to Supabase - SIMPLIFIED AND MORE RELIABLE VERSION
   const saveQuiz = async () => {
     console.log("Starting save process...");
 
@@ -406,8 +415,8 @@ const CreateQuiz = () => {
         const { error: updateError } = await supabase
           .from("quizzes")
           .update({
-            title: quizData.title.trim(),
-            description: quizData.description.trim(),
+            title: quizData.title.trim().substring(0, 200),
+            description: quizData.description.trim().substring(0, 1000),
           })
           .eq("id", quizId.trim());
 
@@ -418,15 +427,24 @@ const CreateQuiz = () => {
 
         savedQuizId = quizId.trim();
 
-        // Delete existing questions
-        await supabase.from("questions").delete().eq("quiz_id", savedQuizId);
+        // Delete existing questions and their options
+        console.log("Deleting existing questions...");
+        const { error: deleteError } = await supabase
+          .from("questions")
+          .delete()
+          .eq("quiz_id", savedQuizId);
+
+        if (deleteError) {
+          console.error("Delete error:", deleteError);
+          throw deleteError;
+        }
       } else {
         // Create new quiz
         console.log("Creating new quiz...");
 
         const quizPayload = {
-          title: quizData.title.trim(),
-          description: quizData.description.trim(),
+          title: quizData.title.trim().substring(0, 200),
+          description: quizData.description.trim().substring(0, 1000),
           user_id: user.id,
         };
 
@@ -456,51 +474,73 @@ const CreateQuiz = () => {
         console.log("Created quiz with ID:", savedQuizId);
       }
 
-      // Insert questions and options
+      // Insert questions and options - SIMPLIFIED APPROACH
       console.log("Saving questions...");
 
-      for (const question of quizData.questions) {
-        console.log("Saving question:", question.text.substring(0, 50));
+      for (let i = 0; i < quizData.questions.length; i++) {
+        const question = quizData.questions[i];
+        console.log(`Saving question ${i + 1}/${quizData.questions.length}`);
 
         // Insert question
-        const { data: savedQuestion, error: questionError } = await supabase
+        const questionText = question.text.trim().substring(0, 1500); // Reduced limit
+        const { data: questionData, error: questionError } = await supabase
           .from("questions")
           .insert({
             quiz_id: savedQuizId,
-            text: question.text.trim(),
+            text: questionText,
             time_limit: question.timeLimit,
           })
           .select("id")
           .single();
 
         if (questionError) {
-          console.error("Question error:", questionError);
-          throw questionError;
+          console.error(`Question ${i + 1} error:`, questionError);
+          throw new Error(
+            `Failed to save question ${i + 1}: ${questionError.message}`,
+          );
         }
 
-        if (!savedQuestion?.id) {
-          throw new Error("No question ID returned");
+        if (!questionData?.id) {
+          throw new Error(`No question ID returned for question ${i + 1}`);
         }
 
-        console.log("Created question with ID:", savedQuestion.id);
+        console.log(`Question ${i + 1} saved with ID:`, questionData.id);
 
-        // Insert options
-        const optionsToInsert = question.options.map((option) => ({
-          question_id: String(savedQuestion.id),
-          text: option.text.trim(),
-          is_correct: option.isCorrect,
-        }));
+        // Insert options one by one to avoid batch issues
+        console.log(
+          `Saving ${question.options.length} options for question ${i + 1}`,
+        );
 
-        const { error: optionsError } = await supabase
-          .from("options")
-          .insert(optionsToInsert);
+        for (let j = 0; j < question.options.length; j++) {
+          const option = question.options[j];
+          const optionText = option.text.trim().substring(0, 300); // Reduced limit
 
-        if (optionsError) {
-          console.error("Options error:", optionsError);
-          throw optionsError;
+          const { error: optionError } = await supabase.from("options").insert({
+            question_id: String(questionData.id),
+            text: optionText,
+            is_correct: option.isCorrect,
+          });
+
+          if (optionError) {
+            console.error(
+              `Option ${j + 1} for question ${i + 1} error:`,
+              optionError,
+            );
+            throw new Error(
+              `Failed to save option ${j + 1} for question ${i + 1}: ${optionError.message}`,
+            );
+          }
+
+          console.log(`Option ${j + 1} for question ${i + 1} saved`);
+
+          // Small delay between options
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        console.log("Saved options for question", savedQuestion.id);
+        console.log(`Completed question ${i + 1}`);
+
+        // Delay between questions
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
 
       console.log("All data saved successfully!");
@@ -515,16 +555,220 @@ const CreateQuiz = () => {
       // Navigate back to host page
       setTimeout(() => {
         navigate("/host");
-      }, 1000);
+      }, 1500);
     } catch (error: any) {
       console.error("Save error:", error);
+
+      let errorMessage = "Failed to save quiz";
+      if (error.message) {
+        errorMessage = error.message;
+      }
+
       toast({
         title: "Error saving quiz",
-        description: error.message || "An unexpected error occurred",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Download demo Excel template
+  const downloadDemoExcel = () => {
+    // Create CSV content for demo
+    const csvContent = `Quiz Title,Quiz Description,Question Number,Question Text,Time Limit (seconds),Option 1,Option 2,Option 3,Option 4,Option 5,Correct Answer (1-5)
+"Sample Quiz Title","This is a sample quiz description",1,"What is the capital of France?",30,"London","Berlin","Paris","Madrid","",3
+"Sample Quiz Title","This is a sample quiz description",2,"Which planet is known as the Red Planet?",25,"Venus","Mars","Jupiter","Saturn","",2
+"Sample Quiz Title","This is a sample quiz description",3,"What is 2 + 2?",15,"3","4","5","6","",2
+"Sample Quiz Title","This is a sample quiz description",4,"Who wrote Romeo and Juliet?",35,"Charles Dickens","William Shakespeare","Jane Austen","Mark Twain","Leo Tolstoy",2`;
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "quiz-template.csv");
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Template downloaded",
+      description: "Fill out the CSV file and upload it to create your quiz",
+    });
+  };
+
+  // Parse CSV content
+  const parseCSV = (csvText: string): any[] => {
+    const lines = csvText.split("\n").filter((line) => line.trim());
+    if (lines.length < 2) return [];
+
+    const headers = lines[0].split(",").map((h) => h.replace(/"/g, "").trim());
+    const rows = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = [];
+      let current = "";
+      let inQuotes = false;
+
+      for (let j = 0; j < lines[i].length; j++) {
+        const char = lines[i][j];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === "," && !inQuotes) {
+          values.push(current.trim());
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+
+      if (values.length >= headers.length) {
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || "";
+        });
+        rows.push(row);
+      }
+    }
+
+    return rows;
+  };
+
+  // Process uploaded Excel/CSV file
+  const processUploadedFile = (rows: any[]) => {
+    if (rows.length === 0) {
+      throw new Error("No data found in the file");
+    }
+
+    // Group rows by quiz (assuming all rows belong to same quiz)
+    const firstRow = rows[0];
+    const quizTitle = firstRow["Quiz Title"] || "Imported Quiz";
+    const quizDescription = firstRow["Quiz Description"] || "";
+
+    // Group questions
+    const questionsMap = new Map();
+
+    rows.forEach((row) => {
+      const questionNum = parseInt(row["Question Number"]) || 1;
+      const questionText = row["Question Text"] || "";
+      const timeLimit = parseInt(row["Time Limit (seconds)"]) || 30;
+      const correctAnswer = parseInt(row["Correct Answer (1-5)"]) || 1;
+
+      if (!questionText.trim()) return;
+
+      if (!questionsMap.has(questionNum)) {
+        questionsMap.set(questionNum, {
+          id: generateId(),
+          text: questionText,
+          timeLimit: Math.max(5, Math.min(120, timeLimit)),
+          options: [],
+        });
+      }
+
+      const question = questionsMap.get(questionNum);
+
+      // Add options
+      for (let i = 1; i <= 5; i++) {
+        const optionText = row[`Option ${i}`];
+        if (optionText && optionText.trim()) {
+          question.options.push({
+            id: generateId(),
+            text: optionText.trim(),
+            isCorrect: i === correctAnswer,
+          });
+        }
+      }
+    });
+
+    // Convert to array and validate
+    const questions = Array.from(questionsMap.values()).filter((q) => {
+      // Ensure at least 2 options and one correct answer
+      if (q.options.length < 2) return false;
+      const hasCorrect = q.options.some((opt: any) => opt.isCorrect);
+      if (!hasCorrect && q.options.length > 0) {
+        // If no correct answer specified, make first option correct
+        q.options[0].isCorrect = true;
+      }
+      return true;
+    });
+
+    if (questions.length === 0) {
+      throw new Error("No valid questions found in the file");
+    }
+
+    return {
+      title: quizTitle,
+      description: quizDescription,
+      questions,
+    };
+  };
+
+  // Handle file upload
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    const fileName = file.name.toLowerCase();
+    if (
+      !fileName.endsWith(".csv") &&
+      !fileName.endsWith(".xlsx") &&
+      !fileName.endsWith(".xls")
+    ) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a CSV or Excel file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadLoading(true);
+
+    try {
+      let csvText = "";
+
+      if (fileName.endsWith(".csv")) {
+        // Handle CSV file
+        csvText = await file.text();
+      } else {
+        // For Excel files, we'll ask user to convert to CSV
+        toast({
+          title: "Excel file detected",
+          description:
+            "Please save your Excel file as CSV format and upload again",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Parse CSV
+      const rows = parseCSV(csvText);
+      const importedData = processUploadedFile(rows);
+
+      // Update quiz data
+      setQuizData(importedData);
+
+      toast({
+        title: "File uploaded successfully!",
+        description: `Imported ${importedData.questions.length} questions`,
+      });
+    } catch (error: any) {
+      console.error("File upload error:", error);
+      toast({
+        title: "Error processing file",
+        description: error.message || "Failed to process the uploaded file",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadLoading(false);
+      // Reset file input
+      event.target.value = "";
     }
   };
 
@@ -585,13 +829,13 @@ const CreateQuiz = () => {
             <Button
               variant="outline"
               onClick={() => navigate("/host")}
-              disabled={loading}
+              disabled={loading || uploadLoading}
             >
               Cancel
             </Button>
             <Button
               onClick={saveQuiz}
-              disabled={loading}
+              disabled={loading || uploadLoading}
               className="bg-navy hover:bg-navy/90 gap-2"
             >
               <Save className="h-4 w-4" />
@@ -599,6 +843,76 @@ const CreateQuiz = () => {
             </Button>
           </div>
         </div>
+
+        {/* Excel Upload Section */}
+        <Card className="mb-8 border-2 border-dashed border-blue-300 bg-blue-50/50">
+          <CardHeader>
+            <CardTitle className="text-blue-700 flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Import Quiz from Excel/CSV
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Upload a CSV file with your quiz questions and answers. This is an
+              alternative to manually creating questions.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button
+                onClick={downloadDemoExcel}
+                variant="outline"
+                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-100"
+                disabled={loading || uploadLoading}
+              >
+                <Download className="h-4 w-4" />
+                Download Template CSV
+              </Button>
+
+              <div className="relative">
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFileUpload}
+                  disabled={loading || uploadLoading}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  id="file-upload"
+                />
+                <Button
+                  variant="default"
+                  className="bg-blue-600 hover:bg-blue-700 gap-2 w-full sm:w-auto"
+                  disabled={loading || uploadLoading}
+                >
+                  {uploadLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      Upload CSV File
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-500 bg-white p-3 rounded border">
+              <p className="font-medium mb-1">Instructions:</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Download the template CSV file</li>
+                <li>
+                  Fill in your quiz title, description, questions, and answers
+                </li>
+                <li>Save the file as CSV format</li>
+                <li>Upload the CSV file using the button above</li>
+                <li>Review and edit the imported questions if needed</li>
+                <li>Save your quiz</li>
+              </ol>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Quiz Details */}
         <Card className="mb-8">

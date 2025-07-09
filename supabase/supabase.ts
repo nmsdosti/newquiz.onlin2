@@ -13,12 +13,19 @@ console.log(
   supabaseUrl.substring(0, 15) + "...",
 );
 
-// Create Supabase client with additional options to handle CORS issues
+// Create Supabase client with simplified and reliable configuration
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    flowType: "pkce",
+  },
+  global: {
+    headers: {
+      "Content-Type": "application/json",
+    },
+  },
+  db: {
+    schema: "public",
   },
 });
