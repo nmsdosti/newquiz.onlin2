@@ -34,6 +34,11 @@ const AnytimeQuizPlayerGame = () => {
   const [loading, setLoading] = useState(true);
   const [answerSubmitted, setAnswerSubmitted] = useState(false);
   const [playerData, setPlayerData] = useState<any>(null);
+  const [showTransition, setShowTransition] = useState(false);
+  const [transitionTimer, setTransitionTimer] = useState(0);
+  const [submittedAnswers, setSubmittedAnswers] = useState<Set<number>>(
+    new Set(),
+  );
 
   useEffect(() => {
     if (sessionId && playerId) {
@@ -42,17 +47,29 @@ const AnytimeQuizPlayerGame = () => {
   }, [sessionId, playerId]);
 
   useEffect(() => {
-    if (questions.length > 0 && currentQuestionIndex < questions.length) {
+    if (
+      questions.length > 0 &&
+      currentQuestionIndex < questions.length &&
+      !showTransition
+    ) {
       const currentQuestion = questions[currentQuestionIndex];
       setTimeLeft(currentQuestion.time_limit);
       setSelectedOption(null);
-      setAnswerSubmitted(false);
+      setAnswerSubmitted(submittedAnswers.has(currentQuestionIndex));
+
+      // Don't start timer if answer already submitted for this question
+      if (submittedAnswers.has(currentQuestionIndex)) {
+        return;
+      }
 
       const timer = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            if (!answerSubmitted) {
+            if (
+              !answerSubmitted &&
+              !submittedAnswers.has(currentQuestionIndex)
+            ) {
               handleTimeUp();
             }
             return 0;
@@ -63,7 +80,13 @@ const AnytimeQuizPlayerGame = () => {
 
       return () => clearInterval(timer);
     }
-  }, [currentQuestionIndex, questions, answerSubmitted]);
+  }, [
+    currentQuestionIndex,
+    questions,
+    answerSubmitted,
+    showTransition,
+    submittedAnswers,
+  ]);
 
   const fetchQuizData = async () => {
     try {
@@ -142,24 +165,48 @@ const AnytimeQuizPlayerGame = () => {
   };
 
   const handleTimeUp = () => {
-    if (!answerSubmitted) {
+    if (!answerSubmitted && !submittedAnswers.has(currentQuestionIndex)) {
       // Auto-submit with no answer (incorrect)
       setAnswerSubmitted(true);
-      // Move to next question
-      setTimeout(() => {
-        if (currentQuestionIndex < questions.length - 1) {
-          setCurrentQuestionIndex(currentQuestionIndex + 1);
-        } else {
-          completeQuiz();
-        }
-      }, 1500);
+      setSubmittedAnswers((prev) => new Set([...prev, currentQuestionIndex]));
+
+      // Show transition screen and move to next question
+      startTransitionToNextQuestion();
     }
   };
 
+  const startTransitionToNextQuestion = () => {
+    setShowTransition(true);
+    setTransitionTimer(5); // 5 second timer
+
+    const transitionInterval = setInterval(() => {
+      setTransitionTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(transitionInterval);
+          setShowTransition(false);
+
+          if (currentQuestionIndex < questions.length - 1) {
+            setCurrentQuestionIndex(currentQuestionIndex + 1);
+          } else {
+            completeQuiz();
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const submitAnswer = async () => {
-    if (answerSubmitted || !selectedOption) return;
+    if (
+      answerSubmitted ||
+      !selectedOption ||
+      submittedAnswers.has(currentQuestionIndex)
+    )
+      return;
 
     setAnswerSubmitted(true);
+    setSubmittedAnswers((prev) => new Set([...prev, currentQuestionIndex]));
 
     try {
       const currentQuestion = questions[currentQuestionIndex];
@@ -197,14 +244,8 @@ const AnytimeQuizPlayerGame = () => {
 
       if (error) throw error;
 
-      // Move to next question after a short delay
-      setTimeout(() => {
-        if (currentQuestionIndex < questions.length - 1) {
-          setCurrentQuestionIndex(currentQuestionIndex + 1);
-        } else {
-          completeQuiz();
-        }
-      }, 1500);
+      // Start transition to next question with timer
+      startTransitionToNextQuestion();
     } catch (error: any) {
       toast({
         title: "Error submitting answer",
@@ -212,6 +253,11 @@ const AnytimeQuizPlayerGame = () => {
         variant: "destructive",
       });
       setAnswerSubmitted(false);
+      setSubmittedAnswers((prev) => {
+        const newSet = new Set([...prev]);
+        newSet.delete(currentQuestionIndex);
+        return newSet;
+      });
     }
   };
 
@@ -341,16 +387,36 @@ const AnytimeQuizPlayerGame = () => {
           {currentQuestion.text}
         </h1>
 
-        {answerSubmitted ? (
+        {showTransition ? (
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-white/20 mb-6">
+              <div className="text-3xl font-bold text-white">
+                {transitionTimer}
+              </div>
+            </div>
+            <p className="text-2xl mb-4 font-bold">Answer submitted!</p>
+            <p className="text-white/80 text-lg">
+              {currentQuestionIndex < questions.length - 1
+                ? `Next question in ${transitionTimer} seconds...`
+                : "Completing quiz..."}
+            </p>
+            <div className="mt-6">
+              <div className="h-2 bg-white/20 rounded-full max-w-xs mx-auto">
+                <div
+                  className="h-2 bg-white rounded-full transition-all duration-1000 ease-linear"
+                  style={{ width: `${((5 - transitionTimer) / 5) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        ) : answerSubmitted || submittedAnswers.has(currentQuestionIndex) ? (
           <div className="text-center">
             <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-white/20 mb-4">
               <CheckCircle className="h-8 w-8 text-white" />
             </div>
-            <p className="text-xl mb-4">Answer submitted!</p>
+            <p className="text-xl mb-4">Answer already submitted!</p>
             <p className="text-white/80">
-              {currentQuestionIndex < questions.length - 1
-                ? "Moving to next question..."
-                : "Completing quiz..."}
+              You can only submit one answer per question.
             </p>
           </div>
         ) : (
@@ -381,10 +447,19 @@ const AnytimeQuizPlayerGame = () => {
             <div className="text-center">
               <Button
                 onClick={submitAnswer}
-                disabled={!selectedOption || answerSubmitted || timeLeft === 0}
+                disabled={
+                  !selectedOption ||
+                  answerSubmitted ||
+                  timeLeft === 0 ||
+                  submittedAnswers.has(currentQuestionIndex)
+                }
                 className="bg-white text-purple-600 hover:bg-white/90 text-xl font-bold px-12 py-6 h-auto rounded-xl disabled:opacity-50"
               >
-                {!selectedOption ? "Select an Answer" : "Submit Answer"}
+                {submittedAnswers.has(currentQuestionIndex)
+                  ? "Answer Already Submitted"
+                  : !selectedOption
+                    ? "Select an Answer"
+                    : "Submit Answer"}
               </Button>
             </div>
           </div>
