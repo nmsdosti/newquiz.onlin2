@@ -35,6 +35,7 @@ interface Player {
   name: string;
   score: number;
   avatar: string;
+  totalCompletionTime?: number;
 }
 
 const GamePlay = () => {
@@ -177,6 +178,7 @@ const GamePlay = () => {
         name: player.player_name,
         score: 0,
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.player_name}`,
+        totalCompletionTime: 0,
       }));
 
       setPlayers(formattedPlayers);
@@ -310,7 +312,6 @@ const GamePlay = () => {
 
   const startTimer = (questionIndex: number, seconds: number) => {
     // Accept questionIndex as an argument
-    // const questionIndex = currentQuestionIndex; // REMOVE THIS LINE
     console.log(
       `[TIMER] Starting timer with ${seconds} seconds for question ${questionIndex + 1}`,
     );
@@ -755,6 +756,9 @@ const GamePlay = () => {
         }
         stopStatsPolling();
 
+        // Calculate total completion times for all players
+        await calculatePlayerCompletionTimes();
+
         await supabase
           .from("game_sessions")
           .update({
@@ -848,6 +852,48 @@ const GamePlay = () => {
     navigate("/host");
   };
 
+  // Calculate total completion time for each player
+  const calculatePlayerCompletionTimes = async () => {
+    try {
+      // Get all game answers with time_taken for this session
+      const { data: gameAnswers, error } = await supabase
+        .from("game_answers")
+        .select(
+          `
+          player_id,
+          time_taken,
+          game_players!inner(player_name)
+        `,
+        )
+        .eq("session_id", sessionId);
+
+      if (error) {
+        console.error("Error fetching completion times:", error);
+        return;
+      }
+
+      // Calculate total completion time for each player
+      const playerCompletionTimes: { [key: string]: number } = {};
+      gameAnswers?.forEach((answer) => {
+        const playerId = answer.player_id;
+        if (!playerCompletionTimes[playerId]) {
+          playerCompletionTimes[playerId] = 0;
+        }
+        playerCompletionTimes[playerId] += answer.time_taken || 0;
+      });
+
+      // Update players state with completion times
+      setPlayers((currentPlayers) =>
+        currentPlayers.map((player) => ({
+          ...player,
+          totalCompletionTime: playerCompletionTimes[player.id] || 0,
+        })),
+      );
+    } catch (error) {
+      console.error("Error calculating completion times:", error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white pt-16 flex items-center justify-center">
@@ -896,9 +942,10 @@ const GamePlay = () => {
 
       // Section 2: Final Leaderboard
       csvContent += "FINAL LEADERBOARD\n";
-      csvContent += "Rank,Player Name,Final Score\n";
+      csvContent +=
+        "Rank,Player Name,Final Score,Total Completion Time (seconds)\n";
       sortedPlayers.forEach((player, index) => {
-        csvContent += `${index + 1},"${player.name}",${player.score}\n`;
+        csvContent += `${index + 1},"${player.name}",${player.score},${player.totalCompletionTime || 0}\n`;
       });
       csvContent += "\n";
 
@@ -1018,8 +1065,14 @@ const GamePlay = () => {
   }
 
   if (gameEnded) {
-    // Sort players by score (highest first)
-    const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+    // Sort players by score (highest first), then by completion time (lowest first) for ties
+    const sortedPlayers = [...players].sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score; // Higher score first
+      }
+      // If scores are equal, sort by completion time (lower time first)
+      return (a.totalCompletionTime || 0) - (b.totalCompletionTime || 0);
+    });
 
     return (
       <div className="min-h-screen bg-[#f5f5f7] pt-16 pb-12">
@@ -1066,7 +1119,12 @@ const GamePlay = () => {
                             {player.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
-                        <span className="font-medium">{player.name}</span>
+                        <div>
+                          <span className="font-medium">{player.name}</span>
+                          <div className="text-xs text-gray-500">
+                            Completed in {player.totalCompletionTime || 0}s
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <span className="font-bold">
@@ -1255,7 +1313,9 @@ const GamePlay = () => {
 
               <div className="flex justify-center gap-4">
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
+                    // Calculate completion times before ending
+                    await calculatePlayerCompletionTimes();
                     // End the quiz immediately and show final results
                     setGameEnded(true);
                   }}
@@ -1285,7 +1345,16 @@ const GamePlay = () => {
 
               <div className="space-y-3">
                 {[...players]
-                  .sort((a, b) => b.score - a.score)
+                  .sort((a, b) => {
+                    if (b.score !== a.score) {
+                      return b.score - a.score; // Higher score first
+                    }
+                    // If scores are equal, sort by completion time (lower time first)
+                    return (
+                      (a.totalCompletionTime || 0) -
+                      (b.totalCompletionTime || 0)
+                    );
+                  })
                   .slice(0, 5)
                   .map((player, index) => (
                     <div
@@ -1296,7 +1365,12 @@ const GamePlay = () => {
                         <div className="bg-gray-200 h-6 w-6 rounded-full flex items-center justify-center mr-3 text-gray-700 font-bold">
                           {index + 1}
                         </div>
-                        <span className="font-medium">{player.name}</span>
+                        <div>
+                          <span className="font-medium">{player.name}</span>
+                          <div className="text-xs text-gray-500">
+                            {player.totalCompletionTime || 0}s
+                          </div>
+                        </div>
                       </div>
                       <span className="font-bold">
                         {player.score.toLocaleString()}
@@ -1469,7 +1543,13 @@ const GameSummary: React.FC<GameSummaryProps> = ({
             averageTime: averageTime,
           };
         })
-        .sort((a, b) => b.score - a.score);
+        .sort((a, b) => {
+          if (b.score !== a.score) {
+            return b.score - a.score; // Higher score first
+          }
+          // If scores are equal, sort by completion time (lower time first)
+          return (a.totalCompletionTime || 0) - (b.totalCompletionTime || 0);
+        });
 
       // Find most difficult and easiest questions
       const sortedByDifficulty = [...questionStats].sort(
@@ -2046,7 +2126,8 @@ const GameSummary: React.FC<GameSummaryProps> = ({
                         </div>
                         <div className="text-sm text-gray-600">
                           Rank #{index + 1} • {player.correctAnswers}/
-                          {player.totalAnswers} correct
+                          {player.totalAnswers} correct •{" "}
+                          {Math.round(player.averageTime)}s avg
                         </div>
                       </div>
                     </div>
@@ -2288,10 +2369,16 @@ const GameSummary: React.FC<GameSummaryProps> = ({
           <Button
             onClick={async () => {
               try {
-                // Sort players by score (highest first)
-                const sortedPlayers = [...players].sort(
-                  (a, b) => b.score - a.score,
-                );
+                // Sort players by score (highest first), then by completion time (lowest first) for ties
+                const sortedPlayers = [...players].sort((a, b) => {
+                  if (b.score !== a.score) {
+                    return b.score - a.score; // Higher score first
+                  }
+                  // If scores are equal, sort by completion time (lower time first)
+                  return (
+                    (a.totalCompletionTime || 0) - (b.totalCompletionTime || 0)
+                  );
+                });
 
                 // Get all game answers for this session
                 const { data: gameAnswers, error: answersError } =
@@ -2323,9 +2410,10 @@ const GameSummary: React.FC<GameSummaryProps> = ({
 
                 // Section 2: Final Leaderboard
                 csvContent += "FINAL LEADERBOARD\n";
-                csvContent += "Rank,Player Name,Final Score\n";
+                csvContent +=
+                  "Rank,Player Name,Final Score,Total Completion Time (seconds)\n";
                 sortedPlayers.forEach((player, index) => {
-                  csvContent += `${index + 1},"${player.name}",${player.score}\n`;
+                  csvContent += `${index + 1},"${player.name}",${player.score},${player.totalCompletionTime || 0}\n`;
                 });
                 csvContent += "\n";
 
@@ -2438,7 +2526,8 @@ const GameSummary: React.FC<GameSummaryProps> = ({
                 toast({
                   title: "Export failed",
                   description:
-                    error.message || "Something went wrong while exporting",
+                    error.message ||
+                    "Something went wrong while generating PDF",
                   variant: "destructive",
                 });
               }
