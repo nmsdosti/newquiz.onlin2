@@ -10,6 +10,7 @@ import Home from "./components/pages/home";
 import Dashboard from "./components/pages/dashboard";
 import Profile from "./components/pages/profile";
 import Settings from "./components/pages/settings";
+import ContactUs from "./components/pages/ContactUs";
 import CreateQuiz from "./components/quiz/CreateQuiz";
 import HostQuiz from "./components/quiz/HostQuiz";
 import GameLobby from "./components/quiz/GameLobby";
@@ -22,6 +23,7 @@ import AnytimeQuizJoin from "./components/quiz/AnytimeQuizJoin";
 import AnytimeQuizPlayerGame from "./components/quiz/AnytimeQuizPlayerGame";
 import AnytimeQuizGamePlay from "./components/quiz/AnytimeQuizGamePlay";
 import AdminApproval from "./components/admin/AdminApproval";
+import Messages from "./components/pages/messages";
 import { AuthProvider, useAuth } from "./components/auth/VercelAuthProvider";
 import { Toaster } from "./components/ui/toaster";
 import { LoadingScreen, LoadingSpinner } from "./components/ui/loading-spinner";
@@ -88,6 +90,7 @@ function AppRoutes() {
       {tempoRoutes}
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/contact" element={<ContactUs />} />
         <Route path="/login" element={<LoginForm />} />
         <Route path="/signup" element={<SignUpForm />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -204,6 +207,14 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <AdminApproval />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/messages"
+          element={
+            <AdminRoute>
+              <Messages />
             </AdminRoute>
           }
         />

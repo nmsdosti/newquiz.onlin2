@@ -141,6 +141,141 @@ export default function LandingPage() {
           </div>
         </div>
       </main>
+
+      {/* Pricing Section */}
+      <section className="bg-white py-16 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              Choose Your Plan
+            </h2>
+            <p className="text-xl text-gray-600">
+              Unlock unlimited quiz creation and hosting
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {/* Monthly Plan */}
+            <div className="bg-white rounded-2xl border-2 border-gray-200 p-8 text-center hover:border-[#FF6952] transition-colors">
+              <div className="text-4xl mb-4">📅</div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Monthly</h3>
+              <div className="text-4xl font-bold text-[#FF6952] mb-4">
+                ₹49<span className="text-lg text-gray-500">/month</span>
+              </div>
+              <ul className="text-left space-y-3 mb-8">
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">Unlimited quiz creation</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">Unlimited participants</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">Real-time analytics</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">24/7 support</span>
+                </li>
+              </ul>
+              <Link to="/contact">
+                <Button className="w-full rounded-full bg-[#FF6952] text-white hover:bg-[#FF6952]/90 text-lg py-3">
+                  Contact Us
+                </Button>
+              </Link>
+            </div>
+
+            {/* Yearly Plan */}
+            <div className="bg-white rounded-2xl border-2 border-[#FF6952] p-8 text-center relative transform scale-105">
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                <span className="bg-[#FF6952] text-white px-4 py-1 rounded-full text-sm font-semibold">
+                  Most Popular
+                </span>
+              </div>
+              <div className="text-4xl mb-4">🎯</div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Yearly</h3>
+              <div className="text-4xl font-bold text-[#FF6952] mb-2">
+                ₹499<span className="text-lg text-gray-500">/year</span>
+              </div>
+              <div className="text-sm text-green-600 font-semibold mb-4">
+                Save ₹89 (15% off)
+              </div>
+              <ul className="text-left space-y-3 mb-8">
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">Everything in Monthly</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">Priority support</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">Advanced analytics</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">Custom branding</span>
+                </li>
+              </ul>
+              <Link to="/contact">
+                <Button className="w-full rounded-full bg-[#FF6952] text-white hover:bg-[#FF6952]/90 text-lg py-3">
+                  Contact Us
+                </Button>
+              </Link>
+            </div>
+
+            {/* Custom Website Plan */}
+            <div className="bg-white rounded-2xl border-2 border-gray-200 p-8 text-center hover:border-[#FF6952] transition-colors">
+              <div className="text-4xl mb-4">🌐</div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                Custom Website
+              </h3>
+              <div className="text-4xl font-bold text-[#FF6952] mb-2">
+                ₹899<span className="text-lg text-gray-500">/year</span>
+              </div>
+              <div className="text-sm text-gray-500 mb-4">+ Domain charges</div>
+              <ul className="text-left space-y-3 mb-8">
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">Your own domain</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">Custom logo & branding</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">White-label solution</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-700">Dedicated support</span>
+                </li>
+              </ul>
+              <Link to="/contact">
+                <Button className="w-full rounded-full bg-[#FF6952] text-white hover:bg-[#FF6952]/90 text-lg py-3">
+                  Contact Us
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          <div className="text-center mt-12">
+            <p className="text-gray-600 mb-4">
+              All plans include unlimited quiz creation and hosting
+            </p>
+            <p className="text-sm text-gray-500">
+              Need help choosing?{" "}
+              <a href="/contact" className="text-[#FF6952] hover:underline">
+                Contact our team
+              </a>
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

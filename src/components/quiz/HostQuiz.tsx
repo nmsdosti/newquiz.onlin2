@@ -546,8 +546,7 @@ const HostQuiz = () => {
                           Self-Paced Quiz
                         </div>
                         <div className="text-sm opacity-90">
-                          Players can join anytime and complete at their own
-                          pace
+                          Players can join anytime,anywhere and live results
                         </div>
                       </div>
                     </Button>

@@ -8,7 +8,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Settings, User, LogOut, Play, Shield } from "lucide-react";
+import {
+  Settings,
+  User,
+  LogOut,
+  Play,
+  Shield,
+  MessageSquare,
+} from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/VercelAuthProvider";
 
@@ -75,15 +82,26 @@ export default function UserMenu() {
           </Link>
         </DropdownMenuItem>
         {isAdmin && (
-          <DropdownMenuItem asChild>
-            <Link
-              to="/admin"
-              className="cursor-pointer flex w-full items-center"
-            >
-              <Shield className="mr-2 h-4 w-4" />
-              Admin Panel
-            </Link>
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuItem asChild>
+              <Link
+                to="/admin"
+                className="cursor-pointer flex w-full items-center"
+              >
+                <Shield className="mr-2 h-4 w-4" />
+                Admin Panel
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                to="/messages"
+                className="cursor-pointer flex w-full items-center"
+              >
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Messages
+              </Link>
+            </DropdownMenuItem>
+          </>
         )}
         <DropdownMenuItem asChild>
           <Link
